@@ -2,7 +2,11 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ActiveTimer } from '@/components/time/active-timer'
 import { QuickEntry } from '@/components/time/quick-entry'
-import { TimeEntries } from '@/components/time/time-entries'
+import { ProjectListWidget } from '@/components/dashboard/project-list-widget'
+import { MyTasksWidget } from '@/components/dashboard/my-tasks-widget'
+// 👇 NOUVEL IMPORT
+import { WorkloadView } from '@/components/dashboard/workload-view'
+import { Clock, Briefcase, Euro } from 'lucide-react'
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient()
@@ -10,104 +14,144 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
+  // 1. Profil de l'utilisateur connecté (pour le header et le calcul du taux)
   const { data: profile } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', user.id)
     .single()
 
+  // 2. Timer actif
   const { data: activeTimer } = await supabase
     .from('active_timers')
     .select('*')
     .eq('user_id', user.id)
     .maybeSingle()
 
+  // 3. Projets (pour la liste)
   const { data: projects } = await supabase
     .from('projects')
     .select('*, client:clients(id, name, company)')
-    .eq('status', 'active')
-    .order('name')
+    .order('created_at', { ascending: false })
 
+  // 4. Statistiques du jour
   const today = new Date().toISOString().split('T')[0]
   const { data: todayEntries } = await supabase
     .from('time_entries')
-    .select('*, project:projects(name, color, client:clients(name, company))')
+    .select('*')
     .eq('user_id', user.id)
     .eq('date', today)
-    .order('created_at', { ascending: false })
 
   const todayMinutes = todayEntries?.reduce((sum, e) => sum + e.duration_minutes, 0) || 0
-  const todayBillable = todayEntries?.filter(e => e.is_billable).reduce((sum, e) => sum + e.duration_minutes, 0) || 0
+  const todayBillableMinutes = todayEntries?.filter(e => e.is_billable).reduce((sum, e) => sum + e.duration_minutes, 0) || 0
+  const hourlyRate = profile?.hourly_rate || 0
+  const billableAmount = (todayBillableMinutes / 60) * hourlyRate
+
+  // 👇 5. NOUVEAU : Récupération des données pour la Charge de Travail (Workload)
+  // On récupère TOUTES les tâches non terminées pour voir la charge future
+  const { data: allTasks } = await supabase
+    .from('project_tasks')
+    .select('*')
+    .neq('status', 'done') 
+  
+  // On récupère TOUS les membres de l'équipe pour les afficher dans le tableau
+  const { data: teamMembers } = await supabase
+    .from('profiles')
+    .select('user_id, full_name') // Assurez-vous que les colonnes existent
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        
-        {/* Header */}
+    <div className="p-8 space-y-8 max-w-[1600px] mx-auto min-h-screen flex flex-col">
+      
+      {/* Header */}
+      <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Bonjour {profile?.full_name || 'là'} 👋
-          </h1>
-          <p className="text-gray-600 mt-1">Votre activité du jour</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Bonjour, {profile?.full_name?.split(' ')[0] || 'Toi'} 👋</h1>
+          <p className="text-slate-500">Prêt à créer quelque chose de génial aujourd'hui ?</p>
+        </div>
+        <div className="text-sm font-medium text-slate-400 bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm">
+          {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="p-6 rounded-2xl border border-slate-100 bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:border-blue-100 transition-all group">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <Clock className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-slate-900 mb-1">{(todayMinutes / 60).toFixed(1)}h</div>
+          <div className="text-sm text-slate-500">Travaillées aujourd'hui</div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600">Heures aujourd'hui</h3>
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+        <div className="p-6 rounded-2xl border border-slate-100 bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:border-purple-100 transition-all group">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 bg-purple-50 text-purple-600 rounded-lg group-hover:bg-purple-600 group-hover:text-white transition-colors">
+              <Briefcase className="w-5 h-5" />
             </div>
-            <div className="text-3xl font-bold text-gray-900">{(todayMinutes / 60).toFixed(1)}h</div>
-            <p className="text-xs text-gray-500 mt-1">{(todayBillable / 60).toFixed(1)}h facturables</p>
           </div>
-
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600">Pointages</h3>
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{todayEntries?.length || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">Aujourd'hui</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600">Projets actifs</h3>
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{projects?.length || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">En cours</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600">Statut</h3>
-              <div className={`w-3 h-3 rounded-full ${activeTimer ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></div>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">
-              {activeTimer ? '🟢' : '⚪'}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {activeTimer ? 'Timer actif' : 'Pas de timer'}
-            </p>
-          </div>
+          <div className="text-3xl font-bold text-slate-900 mb-1">{projects?.filter(p => p.status === 'active' || p.status === 'production').length || 0}</div>
+          <div className="text-sm text-slate-500">Projets en cours</div>
         </div>
 
-        {/* Timer & Quick Entry */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="p-6 rounded-2xl border border-slate-100 bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:border-orange-100 transition-all group">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 bg-orange-50 text-orange-600 rounded-lg group-hover:bg-orange-600 group-hover:text-white transition-colors">
+              <Euro className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-slate-900 mb-1">{billableAmount.toFixed(0)}€</div>
+          <div className="text-sm text-slate-500">Générés aujourd'hui (est.)</div>
+        </div>
+      </div>
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
+        
+        {/* Left Column (2/3) */}
+        <div className="lg:col-span-2 space-y-8 flex flex-col">
+          
           <ActiveTimer activeTimer={activeTimer} userId={user.id} projects={projects || []} />
-          <QuickEntry userId={user.id} projects={projects || []} />
+
+          {/* 👇 NOUVEAU : La vue Charge de travail juste au-dessus des projets */}
+          <WorkloadView 
+            tasks={allTasks || []} 
+            members={teamMembers || []} 
+          />
+
+          {/* Liste des projets */}
+          <div className="flex flex-col flex-1 min-h-[400px]">
+             <ProjectListWidget projects={projects || []} />
+          </div>
+
         </div>
 
-        {/* Time Entries */}
-        <TimeEntries entries={todayEntries || []} />
+        {/* Right Column (1/3) */}
+        <div className="space-y-6">
+          <QuickEntry userId={user.id} projects={projects || []} />
+          <MyTasksWidget />
+          
+          {/* Status Widget */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-800">Mon Statut</h3>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${activeTimer ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                {activeTimer ? 'Occupé' : 'Disponible'}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                {profile?.full_name?.charAt(0) || 'U'}
+              </div>
+              <div>
+                <div className="font-medium text-slate-900 text-sm">{profile?.full_name || 'Utilisateur'}</div>
+                <div className="text-xs text-slate-500">Freelance / Admin</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   )

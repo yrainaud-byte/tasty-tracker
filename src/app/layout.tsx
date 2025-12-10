@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Tasty Tracker',
-  description: 'Gestion de production vidéo',
+  description: 'Gestion de production pour agences créatives',
 }
 
 export default async function RootLayout({
@@ -30,7 +30,8 @@ export default async function RootLayout({
     profile = data
   }
 
-  // Page de login sans layout
+  // Cas 1 : Utilisateur NON connecté (Page de Login)
+  // On doit quand même rendre html/body
   if (!user) {
     return (
       <html lang="fr">
@@ -39,14 +40,16 @@ export default async function RootLayout({
     )
   }
 
+  // Cas 2 : Utilisateur CONNECTÉ (Dashboard)
+  // C'est ici qu'on applique le nouveau design (bg-slate-50)
   return (
     <html lang="fr">
       <body className={inter.className}>
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex h-screen overflow-hidden bg-slate-50">
           <Sidebar user={profile} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <Header />
-            <main className="flex-1 overflow-y-auto bg-gray-50">
+            <main className="flex-1 overflow-y-auto">
               {children}
             </main>
           </div>

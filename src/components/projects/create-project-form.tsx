@@ -8,6 +8,7 @@ export function CreateProjectForm() {
   const [name, setName] = useState('')
   const [clientId, setClientId] = useState('')
   const [color, setColor] = useState('#3b82f6')
+  const [budgetHours, setBudgetHours] = useState('')
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
@@ -36,7 +37,7 @@ export function CreateProjectForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim() || !clientId) return
+    if (!name.trim() || !clientId || !budgetHours) return
 
     setLoading(true)
     try {
@@ -44,12 +45,14 @@ export function CreateProjectForm() {
         name: name.trim(),
         client_id: clientId,
         color,
+        budget_hours: parseFloat(budgetHours),
         status: 'active'
       })
 
       setName('')
       setClientId('')
       setColor('#3b82f6')
+      setBudgetHours('')
       setIsOpen(false)
       router.refresh()
     } catch (error) {
@@ -110,6 +113,21 @@ export function CreateProjectForm() {
         </div>
 
         <div>
+          <label className="block text-sm font-medium mb-2">Budget temps (heures) *</label>
+          <input
+            type="number"
+            step="0.5"
+            min="0"
+            value={budgetHours}
+            onChange={(e) => setBudgetHours(e.target.value)}
+            placeholder="Ex: 120"
+            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            required
+          />
+          <p className="text-xs text-gray-500 mt-1">Temps total alloué à ce projet</p>
+        </div>
+
+        <div>
           <label className="block text-sm font-medium mb-2">Couleur</label>
           <div className="flex gap-2">
             {colors.map((c) => (
@@ -129,7 +147,7 @@ export function CreateProjectForm() {
         <div className="flex gap-3">
           <button
             type="submit"
-            disabled={loading || !clientId}
+            disabled={loading || !clientId || !budgetHours}
             className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
           >
             {loading ? 'Création...' : 'Créer'}
