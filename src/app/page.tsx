@@ -4,7 +4,6 @@ import { ActiveTimer } from '@/components/time/active-timer'
 import { QuickEntry } from '@/components/time/quick-entry'
 import { ProjectListWidget } from '@/components/dashboard/project-list-widget'
 import { MyTasksWidget } from '@/components/dashboard/my-tasks-widget'
-// 👇 NOUVEL IMPORT
 import { WorkloadView } from '@/components/dashboard/workload-view'
 import { Clock, Briefcase, Euro } from 'lucide-react'
 
@@ -14,7 +13,7 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  // 1. Profil de l'utilisateur connecté (pour le header et le calcul du taux)
+  // 1. Profil
   const { data: profile } = await supabase
     .from('profiles')
     .select('*')
@@ -28,7 +27,7 @@ export default async function DashboardPage() {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  // 3. Projets (pour la liste)
+  // 3. Projets
   const { data: projects } = await supabase
     .from('projects')
     .select('*, client:clients(id, name, company)')
@@ -47,17 +46,16 @@ export default async function DashboardPage() {
   const hourlyRate = profile?.hourly_rate || 0
   const billableAmount = (todayBillableMinutes / 60) * hourlyRate
 
-  // 👇 5. NOUVEAU : Récupération des données pour la Charge de Travail (Workload)
-  // On récupère TOUTES les tâches non terminées pour voir la charge future
+  // 5. Charge de Travail (Workload)
   const { data: allTasks } = await supabase
     .from('project_tasks')
     .select('*')
     .neq('status', 'done') 
   
-  // On récupère TOUS les membres de l'équipe pour les afficher dans le tableau
+  // 👇 CORRECTION ICI : on utilise 'id' au lieu de 'user_id'
   const { data: teamMembers } = await supabase
     .from('profiles')
-    .select('user_id, full_name') // Assurez-vous que les colonnes existent
+    .select('id, full_name') 
 
   return (
     <div className="p-8 space-y-8 max-w-[1600px] mx-auto min-h-screen flex flex-col">
@@ -114,7 +112,7 @@ export default async function DashboardPage() {
           
           <ActiveTimer activeTimer={activeTimer} userId={user.id} projects={projects || []} />
 
-          {/* 👇 NOUVEAU : La vue Charge de travail juste au-dessus des projets */}
+          {/* Vue Charge de travail */}
           <WorkloadView 
             tasks={allTasks || []} 
             members={teamMembers || []} 
@@ -132,7 +130,6 @@ export default async function DashboardPage() {
           <QuickEntry userId={user.id} projects={projects || []} />
           <MyTasksWidget />
           
-          {/* Status Widget */}
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-slate-800">Mon Statut</h3>
