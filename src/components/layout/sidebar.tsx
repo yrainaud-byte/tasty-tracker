@@ -9,14 +9,17 @@ import {
   Clock, 
   Zap,
   ChevronsUpDown,
-  Search
-} from 'lucide-react' // Assurez-vous d'avoir installé lucide-react
+  Search,
+  Shield // Icône pour l'équipe
+} from 'lucide-react'
 
+// Une seule définition de la navigation
 const navigation = [
   { name: 'Tableau de bord', href: '/', icon: LayoutGrid },
   { name: 'Clients', href: '/clients', icon: Users },
   { name: 'Projets', href: '/projects', icon: Briefcase },
   { name: 'Temps & Factures', href: '/time', icon: Clock },
+  { name: 'Équipe', href: '/team', icon: Shield }, // Nouvelle page
 ]
 
 export function Sidebar({ user }: { user: any }) {
@@ -61,7 +64,7 @@ export function Sidebar({ user }: { user: any }) {
             )
           })}
 
-          {/* Section Favoris (Statique pour l'instant, pour le look Notion) */}
+          {/* Section Favoris */}
           <div className="mt-8 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-3">
             Favoris
           </div>

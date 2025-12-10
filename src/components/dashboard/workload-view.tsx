@@ -5,13 +5,12 @@ import { format, addMonths, startOfMonth, isSameMonth, parseISO } from 'date-fns
 import { fr } from 'date-fns/locale'
 
 interface WorkloadProps {
-  tasks: any[]   // Liste brute des tâches venant de Supabase
-  members: any[] // Liste des membres de l'équipe
+  tasks: any[]   
+  members: any[] 
 }
 
 export function WorkloadView({ tasks, members }: WorkloadProps) {
   
-  // 1. On calcule les 4 prochains mois à afficher
   const nextMonths = useMemo(() => {
     const months = []
     const today = startOfMonth(new Date())
@@ -21,11 +20,10 @@ export function WorkloadView({ tasks, members }: WorkloadProps) {
     return months
   }, [])
 
-  // 2. On calcule la charge (Nombre de tâches par user par mois)
+  // Calcul de la charge en HEURES
   const workloadData = useMemo(() => {
     const data: Record<string, Record<string, number>> = {}
 
-    // Initialiser la structure vide pour tout le monde
     members.forEach(m => {
       data[m.user_id] = {}
       nextMonths.forEach(month => {
@@ -34,18 +32,17 @@ export function WorkloadView({ tasks, members }: WorkloadProps) {
       })
     })
 
-    // Remplir avec les tâches
     tasks.forEach(task => {
       if (!task.assigned_to || !task.due_date) return
       
-      const taskDate = parseISO(task.due_date)
+      const taskDate = parseISO(task.due_date) // Assurez-vous que vos tâches ont une due_date (sinon utiliser created_at)
       const monthKey = format(taskDate, 'yyyy-MM')
       
-      // Si la tâche est dans un des mois affichés et assignée à un membre connu
       if (data[task.assigned_to] && data[task.assigned_to][monthKey] !== undefined) {
-        // On ne compte pas les tâches terminées
         if (task.status !== 'done') {
-            data[task.assigned_to][monthKey] += 1
+            // C'EST ICI QUE ÇA CHANGE : On additionne les heures estimées
+            const hours = parseFloat(task.estimated_hours || 0)
+            data[task.assigned_to][monthKey] += hours
         }
       }
     })
@@ -53,19 +50,18 @@ export function WorkloadView({ tasks, members }: WorkloadProps) {
     return data
   }, [tasks, members, nextMonths])
 
-  // Fonction pour déterminer la couleur selon la charge
-  const getLoadColor = (count: number) => {
-    if (count === 0) return 'bg-slate-50 text-slate-400' // Rien
-    if (count <= 2) return 'bg-green-100 text-green-700' // Tranquille
-    if (count <= 5) return 'bg-orange-100 text-orange-700' // Occupé
-    return 'bg-red-100 text-red-700 font-bold' // Surchargé (6+ tâches)
+  // Code couleur adapté aux heures (Ex: > 100h/mois = rouge)
+  const getLoadColor = (hours: number) => {
+    if (hours === 0) return 'bg-slate-50 text-slate-400'
+    if (hours <= 80) return 'bg-green-100 text-green-700'  // Charge OK (< 2 semaines)
+    if (hours <= 140) return 'bg-orange-100 text-orange-700' // Charge Élevée
+    return 'bg-red-100 text-red-700 font-bold' // Surcharge (> 1 mois complet)
   }
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-        <h3 className="font-bold text-slate-800">📊 Charge de travail (Tâches actives)</h3>
-        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">Vision 4 mois</span>
+        <h3 className="font-bold text-slate-800">📊 Charge de travail (Heures estimées)</h3>
       </div>
 
       <div className="overflow-x-auto">
@@ -83,24 +79,20 @@ export function WorkloadView({ tasks, members }: WorkloadProps) {
           <tbody className="divide-y divide-slate-100">
             {members.map(member => (
               <tr key={member.user_id} className="hover:bg-slate-50/50 transition">
-                
-                {/* Colonne Membre */}
                 <td className="px-6 py-4 font-medium text-slate-900 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
-                    {member.user?.full_name?.charAt(0) || '?'}
+                    {member.full_name?.charAt(0) || '?'}
                   </div>
-                  {member.user?.full_name?.split(' ')[0]}
+                  {member.full_name?.split(' ')[0]}
                 </td>
-
-                {/* Colonnes Mois */}
                 {nextMonths.map(month => {
                   const monthKey = format(month, 'yyyy-MM')
-                  const count = workloadData[member.user_id]?.[monthKey] || 0
+                  const hours = workloadData[member.user_id]?.[monthKey] || 0
                   
                   return (
                     <td key={monthKey} className="px-6 py-4 text-center">
-                      <div className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs ${getLoadColor(count)}`}>
-                        {count > 0 ? `${count} tâches` : '-'}
+                      <div className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs ${getLoadColor(hours)}`}>
+                        {hours > 0 ? `${hours}h` : '-'}
                       </div>
                     </td>
                   )
@@ -109,10 +101,6 @@ export function WorkloadView({ tasks, members }: WorkloadProps) {
             ))}
           </tbody>
         </table>
-      </div>
-      
-      <div className="p-3 bg-slate-50 text-xs text-center text-slate-400">
-        Les tâches terminées ne sont pas comptabilisées.
       </div>
     </div>
   )

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Trash2, Archive, RotateCcw } from 'lucide-react'
 
 interface Project {
   id: string
@@ -48,6 +49,27 @@ export function ProjectsList({ projects, showArchived = false }: { projects: Pro
       alert('Erreur lors de l\'opération')
     } finally {
       setArchivingId(null)
+    }
+  }
+
+  const handleDelete = async (e: React.MouseEvent, projectId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (!confirm('Êtes-vous sûr de vouloir SUPPRIMER définitivement ce projet ?')) return
+    if (!confirm('ATTENTION : Cette action est irréversible. Toutes les tâches, temps et fichiers associés seront effacés.')) return
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId)
+      
+      if (error) throw error
+      router.refresh()
+    } catch (error) {
+      console.error(error)
+      alert("Erreur lors de la suppression (vérifiez les droits ou les données liées)")
     }
   }
 
@@ -107,6 +129,8 @@ export function ProjectsList({ projects, showArchived = false }: { projects: Pro
                       )}
                     </div>
                   </div>
+                  
+                  {/* Zone Actions */}
                   <div className="flex items-center gap-2">
                     {showArchived ? (
                       <span className="text-xs bg-gray-200 text-gray-700 px-3 py-1 rounded-full font-medium">
@@ -117,17 +141,29 @@ export function ProjectsList({ projects, showArchived = false }: { projects: Pro
                         Actif
                       </span>
                     )}
-                    <button
-                      onClick={(e) => handleArchive(e, project.id, project.status)}
-                      disabled={archivingId === project.id}
-                      className={`text-xs px-3 py-1 rounded-lg font-medium transition-colors ${
-                        showArchived
-                          ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      } disabled:opacity-50`}
-                    >
-                      {showArchived ? '↩️ Réactiver' : '📦 Archiver'}
-                    </button>
+                    
+                    <div className="flex items-center gap-1 pl-2 border-l border-gray-200 ml-2">
+                      <button
+                        onClick={(e) => handleArchive(e, project.id, project.status)}
+                        disabled={archivingId === project.id}
+                        className={`p-2 rounded-lg transition-colors ${
+                          showArchived
+                            ? 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        } disabled:opacity-50`}
+                        title={showArchived ? "Réactiver" : "Archiver"}
+                      >
+                        {showArchived ? <RotateCcw className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                      </button>
+
+                      <button
+                        onClick={(e) => handleDelete(e, project.id)}
+                        className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                        title="Supprimer définitivement"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
